@@ -136,3 +136,213 @@ instead of mutating the previous state.**<code>
 > <code>case ADD_TODO:
 
       return [...state, { text: action.text, id: Date.now() }];</code>
+
+## 1.2 Delete To Do
+
+삭제 기능을 만들기전 <code>onSubmit</code>함수에서 **dispatch**를 하는것이 아닌
+각각의 <code>addToDo</code>, <code>deleteToDo</code>함수를 만들겠다.
+
+먼저 <code>addToDo</code>함수는 text<code>(input의 value)</code>를 파라미터로 받고
+**store.dispatch**를 호출해준다.
+
+```
+const addToDo = text => {
+  store.dispatch({ type: ADD_TODO, text });
+}
+```
+
+그리고 todo들을 paint해줘야하는데 <code>paintToDos</code>함수를 만들고
+이 함수를 **subcribe**해준다.
+<code>paintToDos</code>함수가 실행되면 <code>getState</code>를 가져와 <code>toDos</code>변수에 담고
+리스트를 생성해 text값과 id값을 지정해주고 <code>append</code>시켜준다.
+
+```
+const paintToDos = () =>{
+  const toDos = store.getState();
+  ul.innerText ="";
+  toDos.forEach(toDo => {
+    const li = document.createElement('li');
+    li.id = toDo.id;
+    li.innerText = toDo.text;
+    ul.appendChild(li);
+  })
+}
+store.subscribe(paintToDos);
+```
+
+추가적으로 **reducer**에서 <code>ADD_TODO</code>일때 리턴하는 순서를 수정해주겠다. 이렇게 수정해준다면 <code>todo</code>가 새롭게 추가될때마다 <code>array</code>의 첫부분에 있게된다.
+<code>return [{ text: action.text, id: Date.now() }, ...state];</code>
+
+이제 삭제기능을 만들건데 list item이 생성될때마다 삭제버튼 또한 필요하다. 버튼을 생성하고 클릭이벤트를 등록하였다. <code>deleteToDo</code>함수가 실행되게끔
+
+```
+const paintToDos = () =>{
+  const toDos = store.getState();
+  ul.innerText ="";
+  toDos.forEach(toDo => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.innerText = "DEL";
+    btn.addEventListener('click', deleteToDo);
+    li.id = toDo.id;
+    li.innerText = toDo.text;
+    li.appendChild(btn);
+    ul.appendChild(li);
+  })
+}
+```
+
+이제 <code>deleteToDo</code> 함수를 만들어보자.
+자 생각해보자.
+우리는 <code>list item</code>에 고유의 <code>id</code>값을 넣어주었다. 현재 버튼에는 <code>eventListener</code>가 등록되어있고
+<code>event</code>객체의 <code>target.parentNode</code>를 이용하면
+고유의 <code>id</code>를 가진 해당 <code>list item</code>에 접근할 수 있다.
+
+```
+const deleteToDo = e => {
+  const id = e.target.parentNode.id;
+  store.dispatch({ type: DELETE_TODO, id });
+}
+```
+
+이렇게 <code>addToDo</code>, <code>deleteToDo</code> 함수 생성하였고 추가적으로
+**action**을 <code>return</code>하는 함수를 생성할것이다.
+<code>대부분의 사람들이 주로 reducer 위에 추가한다고한다.</code>
+
+```
+const addToDo = text => {
+  return {
+     type: ADD_TODO,
+     text
+  }
+}
+
+const deleteToDo = id => {
+  return {
+    type: DELETE_TODO,
+    id
+  }
+}
+```
+
+**그리고 기존의 함수를 수정해주겠다.**
+
+```
+const dispatchAddToDo = text => {
+  store.dispatch(addToDo(text));
+}
+
+
+const dispatchDeleteToDo = e => {
+  const id = e.target.parentNode.id;
+  store.dispatch(deleteToDo(id));
+}
+```
+
+자 조금 정리를 하자면 <code>addToDo</code>, <code>deleteToDo</code>함수는 오로지 **action**을 return
+<code>dispatchAddToDo</code>, <code>dispatchDeleteToDo</code>함수는 <code>addToDo</code>, <code>deleteDo</code>함수의
+return하는 object를 **dispatch**해준다.
+
+## 1.3 Delete To Do part Two
+
+이제 정말 삭제기능을 만들어볼 차례이다.
+
+조건은
+내가 삭제할,선택한 <code>todo</code>를 삭제하되
+내가 삭제할 <code>todo</code>의 <code>id</code>에 해당하지 않는 <code>todo</code>들을 유지시키면된다.
+<code>Array.filter</code>를 사용해 조건을 작성하고 그 조건이 충족되면 해당 요소는 새로운 <code>array</code>에 남게하면된다.
+절~~대 <code>Array.prototype.splice()</code>같이 기존의 배열을 수정하는것이아닌
+새로운 <code>array</code>값을 <code>return</code>해야한다.
+
+```
+case DELETE_TODO:
+  return state.filter(toDo => toDo.id !== action.id );
+```
+
+자 이제 완성이다! 아래는 완성한 <code>index.js</code>이다.
+
+### 😁index.js
+
+```
+import {createStore} from "redux";
+
+const form = document.querySelector("form");
+const input = document.querySelector("input");
+const ul = document.querySelector("ul");
+
+const ADD_TODO = "ADD_TODO";
+const DELETE_TODO = "DELETE_TODO";
+
+const addToDo = text => {
+  return {
+     type: ADD_TODO,
+     text
+  }
+}
+
+const deleteToDo = id => {
+  return {
+    type: DELETE_TODO,
+    id
+  }
+}
+
+
+const reducer = (state = [],  action) => {
+  switch(action.type){
+    case ADD_TODO:
+      //Never state mutation!!
+      //return state.push(action.text);
+
+      // Return something new
+      return [{ text: action.text, id: Date.now() }, ...state];
+
+    case DELETE_TODO:
+      return [];
+    default:
+      return state;
+  }
+};
+
+const store = createStore(reducer);
+
+store.subscribe(() => console.log(store.getState()));
+
+
+const dispatchAddToDo = text => {
+  store.dispatch(addToDo(text));
+}
+
+
+const dispatchDeleteToDo = e => {
+  const id = e.target.parentNode.id;
+  store.dispatch(deleteToDo(id));
+}
+
+
+const paintToDos = () =>{
+  const toDos = store.getState();
+  ul.innerText ="";
+  toDos.forEach(toDo => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.innerText = "DEL";
+    btn.addEventListener('click', deleteToDo);
+    li.id = toDo.id;
+    li.innerText = toDo.text;
+    li.appendChild(btn);
+    ul.appendChild(li);
+  })
+}
+
+store.subscribe(paintToDos);
+
+const onSubmit = e => {
+  e.preventDefault();
+  const toDo = input.value;
+  input.value = "";
+  dispatchAddToDo(toDo);
+};
+
+form.addEventListener("submit", onSubmit);
+```
